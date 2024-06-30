@@ -2,8 +2,8 @@ open Unix
 
 let retry_in = 1
 let server_listen_on = "localhost"
-let host = Chat_getopt.host()
-let port = Chat_getopt.port()
+let host = Getopt.host()
+let port = Getopt.port()
 let sock = ref (Core_unix.File_descr.of_int 0)
 
 let new_client_sock host port = 
@@ -42,7 +42,7 @@ let is_ex_non_fatal err = match err with
 let rec new_socket () = 
     Core.eprintf "Creating new socket...\n";
     try
-        let socket = if Chat_getopt.is_run_as_server () 
+        let socket = if Getopt.is_run_as_server () 
                                  then new_server_sock port 
                                  else new_client_sock host port in
         set_nonblock socket;
@@ -61,7 +61,14 @@ let rec new_socket () =
 
 let is_sock_ok socket = match Core_unix.File_descr.to_int(socket) with 0 -> false | _ -> true
 
-let rsocket () = if is_sock_ok !sock then !sock else new_socket ()
-let lsocket () = Unix.stdin
+let rsocket() = if is_sock_ok !sock then !sock else new_socket ()
+let lsocket() = Unix.stdin
 (*let lsocket () = let () = set_nonblock Unix.stdin in Unix.stdin  TODO Lazy *)
+
+let nblk_call fn fd buf pos len =
+    try fn fd buf pos len
+    with Unix.Unix_error (unix_err, _syscall, _where) as ex ->
+        match unix_err with 
+        | EAGAIN | EWOULDBLOCK -> 0
+        | _ -> raise ex 
 

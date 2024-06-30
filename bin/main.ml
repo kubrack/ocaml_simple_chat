@@ -1,26 +1,32 @@
-module Sock = Chat_sock
+open Chat.Sock
+
+(*
+let seq = ref 0
+let next_seq () = incr seq; !seq
+*)
+let net_socket = (rsocket())
+let cli_socket = (lsocket())
 
 let buffer_len = 64 * 1024
 let buffer = Bytes.create buffer_len
 
-let iters = ref 0
-let iii () = iters := if !iters > 10000 then begin Core.eprintf ".%!"; 0 end else !iters + 1
+let net_reader buf pos_to len =
+    nblk_call Unix.read net_socket buf pos_to len
 
-let nblk fn fd buf pos len =
-    try fn fd buf pos len
-    with Unix.Unix_error (unix_err, _syscall, _where) as ex ->
-        match unix_err with 
-        | EAGAIN | EWOULDBLOCK -> 0
-        | _ -> raise ex 
+let data_handler fn buf _len _is_rcvd = fn buf
 
+(* Main loop: infinite mutual recursion: read_remote aka RR -> WL -> RL -> WR -> RR -> ... *)
 let rec read_remote buf = 
-    let _rcvd = nblk Unix.read  (Sock.rsocket()) buf 0 buffer_len in write_local buf
+    let rcvd = net_reader buf 0 buffer_len in 
+    data_handler write_local buf rcvd true
 and write_local buf = 
-    let _sent = nblk Unix.write (Sock.lsocket()) buf 0 buffer_len in read_local buf
+    let sent = nblk_call Unix.write cli_socket buf 0 buffer_len in 
+    data_handler read_local buf sent false
 and read_local buf = 
-    let _rcvd = nblk Unix.read  (Sock.lsocket()) buf 0 buffer_len in 
-    let () = iii()                                                in write_remote buf
+    let rcvd = nblk_call Unix.read cli_socket buf 0 buffer_len in 
+    data_handler write_remote buf rcvd true
 and write_remote buf = 
-    let _sent = nblk Unix.write (Sock.rsocket()) buf 0 buffer_len in read_remote buf
+    let sent = nblk_call Unix.write net_socket buf 0 buffer_len in 
+    data_handler read_remote buf sent false
 
 let () = write_remote buffer
