@@ -16,8 +16,5 @@ let opts = Lazy.from_fun parse_opts
 let host () = (Lazy.force opts).host
 let port () = (Lazy.force opts).port
 
-let is_run_as_server () =
-    if (String.is_empty (host())) 
-    then (eprintf "Run as server at port %d\n" (port()); true)
-    else (eprintf "Run as client of %s:%d\n" (host()) (port()); false)
+let is_run_as_server () = String.is_empty (host()) 
 

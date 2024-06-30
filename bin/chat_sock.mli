@@ -1,1 +1,3 @@
-val socket : unit -> Unix.file_descr option
+val lsocket : unit -> Unix.file_descr
+val rsocket : unit -> Unix.file_descr
+
