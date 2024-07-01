@@ -6,64 +6,78 @@ let host = Getopt.host()
 let port = Getopt.port()
 let sock = ref (Core_unix.File_descr.of_int 0)
 
+let rm_sock() = sock := (Core_unix.File_descr.of_int 0)
+
 let new_client_sock host port = 
     let ip_addr = (gethostbyname host).h_addr_list.(0) in
-    let sock = socket PF_INET SOCK_STREAM 0 in
-    connect sock (ADDR_INET(ip_addr, port));
-    sock
-
-let new_server_sock port = 
-    let ip_addr = (gethostbyname server_listen_on).h_addr_list.(0) in
     let sock_addr = ADDR_INET (ip_addr, port) in
     let sock = socket PF_INET SOCK_STREAM 0 in
-    bind sock sock_addr;
-    listen sock 1;
+    let () = connect sock sock_addr in
     sock
+
+let mk_new_server_sock port = 
+    let ip_addr = (gethostbyname server_listen_on).h_addr_list.(0) in
+    let sock_addr = ADDR_INET (ip_addr, port) in
+    let listen_sock = socket PF_INET SOCK_STREAM 0 in
+    let () = bind listen_sock sock_addr in
+    let () = listen listen_sock 1 in
+    Core.eprintf "Listening at %s:%d\n%!" (string_of_inet_addr ip_addr) port;
+    let acpt() = 
+        let (accepted, addr) = accept listen_sock in
+        let msg = match addr with 
+        | ADDR_INET(ip, p) -> (string_of_inet_addr ip) ^":"^ (string_of_int p)
+        | _ -> "???" in 
+        let () = Core.eprintf "Accepted: %s\n%!" msg in
+        accepted in
+    acpt
+let new_server_sock = lazy (mk_new_server_sock port)
 
 let is_ex_non_fatal err = match err with
     | EADDRINUSE
     | EAGAIN
     | EALREADY
+    | ECONNABORTED
     | ECONNREFUSED
+    | ECONNRESET
     | EHOSTUNREACH
     | EINPROGRESS
+    | EINTR
+    | EINVAL
     | ENETDOWN
     | ENETUNREACH
+    | ENOTCONN
+    | EPIPE
     | ETIMEDOUT
-    | ECONNRESET
     | EIO
     | EWOULDBLOCK -> true
     | _ -> false
 
-(* TODO SIGPIPE at closed sock ---> set SIG handler *)
-(* TODO (Unix.Unix_error "Socket is not connected" write "") in server mode ---> accept(2) *)
-(* TODO Sys_blocked_io - A special case of Sys_error raised when no I/O is possible on a non-blocking I/O channel. 
-   on set_nonblock Unix.stdin ---> FD dup?  *)
-let rec new_socket () = 
+let safe_call action on_ignore = 
+    try action()
+    with Unix_error (unix_err, _syscall, _where) as ex -> 
+        if is_ex_non_fatal unix_err then on_ignore unix_err else raise ex 
+
+let rec socket_create() = 
+    let socket = if Getopt.is_run_as_server () 
+        then ((Lazy.force new_server_sock)()) else new_client_sock host port in
+    set_nonblock socket;
+    sock := socket;
+    socket         
+and socket_re_create unix_err = 
+    Core.eprintf "%s, retrying in %d second(s)...\n%!" (Core_unix.Error.message unix_err) retry_in;
+    Unix.sleep retry_in;
+    new_socket()
+and new_socket() = 
     Core.eprintf "Creating new socket...\n";
-    try
-        let socket = if Getopt.is_run_as_server () 
-                                 then new_server_sock port 
-                                 else new_client_sock host port in
-        set_nonblock socket;
-        sock := socket;
-        socket         
-    with 
-        Unix_error (unix_err, _syscall, _where) as ex -> 
-            Core.eprintf "%s, " (Core_unix.Error.message unix_err);
-            if is_ex_non_fatal unix_err
-            then begin 
-                Core.eprintf "Retrying in %d second(s)...\n%!" retry_in;
-                Unix.sleep retry_in;
-                new_socket()
-            end
-            else raise ex
+    safe_call socket_create socket_re_create
 
 let is_sock_ok socket = match Core_unix.File_descr.to_int(socket) with 0 -> false | _ -> true
 
 let rsocket() = if is_sock_ok !sock then !sock else new_socket ()
-let lsocket() = Unix.stdin
-(*let lsocket () = let () = set_nonblock Unix.stdin in Unix.stdin  TODO Lazy *)
+
+let lsocket_w = stdout
+let lsocket_r = dup stdin
+let () = set_nonblock lsocket_r
 
 let nblk_call fn fd buf pos len =
     try fn fd buf pos len
