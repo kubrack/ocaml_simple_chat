@@ -1,11 +1,11 @@
 open Unix
 
 let retry_in = 1
-let server_listen_on = "localhost"
+let server_listen_on = "0.0.0.0"
 let host = Getopt.host ()
 let port = Getopt.port ()
-let sock = ref (Core_unix.File_descr.of_int 0)
-let rm_sock () = sock := Core_unix.File_descr.of_int 0
+let sock = ref None
+let rm_sock () = sock := None
 
 let new_client_sock host port =
   let ip_addr = (gethostbyname host).h_addr_list.(0) in
@@ -43,10 +43,10 @@ let is_ex_non_fatal err =
       true
   | _ -> false
 
-let safe_call action on_ignore =
+let safe_call action on_call_fails =
   try action ()
   with Unix_error (unix_err, _syscall, _where) as ex ->
-    if is_ex_non_fatal unix_err then on_ignore unix_err else raise ex
+    if is_ex_non_fatal unix_err then on_call_fails unix_err else raise ex
 
 let rec socket_create () =
   let socket =
@@ -54,7 +54,7 @@ let rec socket_create () =
     else new_client_sock host port
   in
   set_nonblock socket;
-  sock := socket;
+  sock := Some socket;
   socket
 
 and socket_re_create unix_err =
@@ -65,18 +65,9 @@ and socket_re_create unix_err =
   new_socket ()
 
 and new_socket () =
-  Core.eprintf "Creating new socket...\n";
   safe_call socket_create socket_re_create
 
-let is_sock_ok socket =
-  match Core_unix.File_descr.to_int socket with 0 -> false | _ -> true
+let socket () = match !sock with
+  | Some s -> s
+  | _ -> new_socket ()
 
-let rsocket () = if is_sock_ok !sock then !sock else new_socket ()
-let lsocket_w = stdout
-let lsocket_r = dup stdin
-let () = set_nonblock lsocket_r
-
-let nblk_call fn fd buf pos len =
-  try fn fd buf pos len
-  with Unix.Unix_error (unix_err, _syscall, _where) as ex -> (
-    match unix_err with EAGAIN | EWOULDBLOCK -> 0 | _ -> raise ex)

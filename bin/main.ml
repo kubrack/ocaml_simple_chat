@@ -1,47 +1,33 @@
-open Chat.Sock
-
 (*
 let seq = ref 0
 let next_seq () = incr seq; !seq
 *)
+let () =
+  Sys.set_signal Sys.sigpipe (Sys.Signal_handle (fun _ -> Chat.Sock.rm_sock ()))
 
-let buffer_len = 64 * 1024
-let buffer = Bytes.create buffer_len
+let chat_send buf =
+  let call () = Unix.write (Chat.Sock.socket ()) buf 0 (Bytes.length buf) in
+  let on_fail _ = Chat.Sock.rm_sock (); 0 in
+  Chat.Sock.safe_call call on_fail
 
-let net_reader buf pos_to len =
-  let r () = nblk_call Unix.read (rsocket ()) buf pos_to len in
-  let on_ignore _ =
-    rm_sock ();
-    0
-  in
-  safe_call r on_ignore
 
-let net_writer buf pos_to len =
-  let w () = nblk_call Unix.write (rsocket ()) buf pos_to len in
-  let on_ignore _ =
-    rm_sock ();
-    0
-  in
-  safe_call w on_ignore
+let remote_to_local () =
+  let buf = Bytes.create Chat.Msg.buffer_len in
+  let fd = Lwt_unix.of_unix_file_descr (Chat.Sock.socket ()) in
+  let promise = Lwt_unix.read fd buf 0 Chat.Msg.buffer_len in
+  Lwt.bind promise (fun recvd ->
+      Unix.write Unix.stdout buf 0 recvd |> Lwt.return)
 
-let () = Sys.set_signal Sys.sigpipe Sys.Signal_ignore
+let local_to_remote () =
+  let promise = Lwt_io.(read_line stdin) in
+  Lwt.bind promise (fun line ->
+      let buf = Bytes.of_string (String.concat "" [ line; "\n" ]) in
+      (* Chat.Msg.compose Chat.Msg.proto_type_msg 1 buf *)
+      chat_send buf |> Lwt.return) 
 
-(* Main loop: infinite mutual recursion: read_remote aka RR -> WL -> RL -> WR -> RR -> ... *)
-let rec read_remote buf =
-  Unix.sleepf 0.1;
-  let rcvd = net_reader buf 0 buffer_len in
-  write_local buf rcvd
+let rec io_loop () =
+  (*let () = Core.eprintf ".%!" in *)
+  let _results = Lwt_main.run (Lwt.nchoose [ remote_to_local (); local_to_remote () ]) in
+  io_loop ()
 
-and write_local buf len =
-  let _sent = nblk_call Unix.write lsocket_w buf 0 len in
-  read_local buf
-
-and read_local buf =
-  let rcvd = nblk_call Unix.read lsocket_r buf 0 buffer_len in
-  write_remote buf rcvd
-
-and write_remote buf len =
-  let _sent = net_writer buf 0 len in
-  read_remote buf
-
-let () = write_remote buffer 0
+let () = io_loop ()

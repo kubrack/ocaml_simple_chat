@@ -1,4 +1,4 @@
 (executable
  (public_name chat)
  (name main)
- (libraries chat core))
+ (libraries chat core lwt lwt.unix))
