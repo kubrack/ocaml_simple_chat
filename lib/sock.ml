@@ -48,12 +48,16 @@ let safe_call action on_call_fails =
   with Unix_error (unix_err, _syscall, _where) as ex ->
     if is_ex_non_fatal unix_err then on_call_fails unix_err else raise ex
 
+let nblk_call fn fd buf pos len =
+  try fn fd buf pos len
+  with Unix.Unix_error (unix_err, _syscall, _where) as ex -> (
+    match unix_err with EAGAIN | EWOULDBLOCK -> 0 | _ -> raise ex)
+
 let rec socket_create () =
   let socket =
     if Getopt.is_run_as_server () then (Lazy.force new_server_sock) ()
     else new_client_sock host port
   in
-  set_nonblock socket;
   sock := Some socket;
   socket
 

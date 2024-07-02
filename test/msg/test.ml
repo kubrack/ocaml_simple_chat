@@ -20,7 +20,6 @@ let mk_reader source =
     let rcvd = if left > len then len else left in
     Bytes.blit source !from buf pos_to rcvd;
     from := !from + rcvd;
-    Core.eprintf "____ %d\n" rcvd;
     rcvd
   in
   reader
@@ -47,14 +46,14 @@ let test_be _ =
   assert_equal lsb (lsb16_of_int i);
   assert_equal (i mod (256 * 256)) (int_of_i16be msb lsb)
 
-let test_compose _ =
+let test_compose_msg _ =
   let msg = Bytes.of_string "0123456789ab"
-  and id = 16395
+  and seq = 16395
   and res = Bytes.of_string "!M\064\011\000\0120123456789ab" in
-  assert_equal res (compose 'M' id msg) ~printer:Bytes.to_string
+  assert_equal res (compose_msg seq msg) ~printer:Bytes.to_string
 
-let ack_handler seq     = Core.eprintf "== ack_handler seq %d\n" seq
-let msg_handler _buf seq len = Core.eprintf "== msg_handler seq %d len %d\n" seq len
+let ack_handler seq = Core.eprintf "== ack_handler seq %d\n" seq
+let msg_handler _buf seq = Core.eprintf "== msg_handler seq %d\n" seq
 
 let test_net_fsm_full_msg _ =
   let msg = Bytes.of_string "!M\000\010\000\0200123456789abcdefghij" in
@@ -71,7 +70,7 @@ let suite =
   >::: [
          "mk_reader tool test" >:: test_mk_reader;
          "Big endian 16 bit <-> int" >:: test_be;
-         "Msg compose" >:: test_compose;
+         "Msg compose" >:: test_compose_msg;
          "fsm full msg" >:: test_net_fsm_full_msg;
          "fsm splited msg" >:: test_net_fsm_splited_msg;
        ]

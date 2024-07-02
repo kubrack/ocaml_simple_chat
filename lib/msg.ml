@@ -14,6 +14,24 @@ type proto_type_t = Ack of char | Msg of char
 
 let buffer_len = 64  (* FIXME * 1024 *)
 
+let seq = ref 0
+let seq_ts = Array.make (64 * 1024) 0 (* 2 bytes in header ring *) 
+
+let now_us () = 
+  Time_now.nanoseconds_since_unix_epoch() 
+  |> Base.Int63.to_int64 
+  |> (fun i -> Int64.div i 1000L) 
+  |> Int64.to_int
+
+let next_seq () = 
+  let () = incr seq in 
+  let seq = !seq in
+  let () = seq_ts.(seq) <- now_us () in
+  seq
+
+let rtt seq = now_us () - seq_ts.(seq)
+let rtt_s seq = (rtt seq |> float_of_int) /. 1000000.
+
 let char_list_of_buf buf len =
   Bytes.sub_string buf 0 len |> String.to_seq |> List.of_seq
 
@@ -21,16 +39,19 @@ let lsb16_of_int i = char_of_int @@ (i mod 256)
 let msb16_of_int i = char_of_int @@ (i / 256 mod 256)
 let int_of_i16be msb lsb = (int_of_char msb * 256) + int_of_char lsb
 
-let compose t id msg =
-  let length = Bytes.length msg in
+let compose t seq msg_buf =
+  let length = Bytes.length msg_buf in
   let header =
     String.make 1 proto_ver ^ String.make 1 t
-    ^ String.make 1 (msb16_of_int id)
-    ^ String.make 1 (lsb16_of_int id)
+    ^ String.make 1 (msb16_of_int seq)
+    ^ String.make 1 (lsb16_of_int seq)
     ^ String.make 1 (msb16_of_int length)
     ^ String.make 1 (lsb16_of_int length)
   in
-  Bytes.cat (Bytes.of_string header) msg
+  Bytes.cat (Bytes.of_string header) msg_buf
+
+let compose_msg seq buf = compose proto_type_msg seq buf
+let compose_ack seq     = compose proto_type_ack seq (Bytes.create 0)
 
 let net_msg_fsm reader ack_handler msg_handler =
   let buf = Bytes.create buffer_len in
@@ -54,37 +75,21 @@ let net_msg_fsm reader ack_handler msg_handler =
         | [ _; a; seq_msb; seq_lsb; '\000'; '\000' ] when a = proto_type_ack ->
             s_ack (int_of_i16be seq_msb seq_lsb)
         | [ _; m; seq_msb; seq_lsb; len_msb; len_lsb ] when m = proto_type_msg->
-            s_msg_start
+            s_msg
               (int_of_i16be seq_msb seq_lsb)
               (int_of_i16be len_msb len_lsb)
         | _ -> s_sync ())
   and s_ack seq =
     debug_fn __FUNCTION__;
     ack_handler seq;
-    (* RTT *)
     Some buf
-    (*TODO trim buf*)
-  and s_msg_start seq len =
-    debug_fn __FUNCTION__;
-    (*match rcvd with
-      | len -> s_msg_done()
-      | _ -> s_msg_continue*)
+  and s_msg seq len =
+    debug_fn (__FUNCTION__ ^ (Core.sprintf "seq [%d] len [%d]" seq len));
     let rcvd = reader buf proto_data_offset len in
-    (* TODO receive rest *)
     match rcvd with
     | 0 -> s_sync ()
     | _ ->
-        msg_handler buf seq len;
-        Some buf
-    (*TODO trim buf
-      Bytes.sub buf 0 (proto_data_offset + len) in *)
+        let msg = Bytes.sub buf 0 (proto_data_offset + len) in 
+        let () = msg_handler msg seq in Some msg
   in
-  let enterpoint () =
-    debug_fn __FUNCTION__;
-    (*match buf_pointer with
-      | 0 -> s_start()
-      | x when 0 < x && x < proto_data_offset -> s_header_continue buf_pointer
-      | _ -> s_msg_continue buf_pointer in *)
-    s_sync ()
-  in
-  enterpoint
+  s_sync 
