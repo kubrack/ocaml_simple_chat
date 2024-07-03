@@ -9,7 +9,7 @@ let sock = ref None
 let rm_sock () = 
   let () = match !sock with
   | None -> ()
-  | Some s -> Unix.close s in
+  | Some s -> close s in
   sock := None
 
 let new_client_sock host port =
@@ -20,27 +20,22 @@ let new_client_sock host port =
   let () = connect sock sock_addr in
   sock
 
-let mk_new_server_sock port =
+let new_server_sock port =
   let ip_addr = (gethostbyname server_listen_on).h_addr_list.(0) in
   let sock_addr = ADDR_INET (ip_addr, port) in
   let listen_sock = socket PF_INET SOCK_STREAM 0 in
-  let () = setsockopt listen_sock SO_REUSEADDR true in
   let () = bind listen_sock sock_addr in
   let () = listen listen_sock 1 in
   Core.eprintf "Listening at %s:%d\n%!" (string_of_inet_addr ip_addr) port;
-  let acpt () =
-    let accepted, addr = accept listen_sock in
-    let msg =
-      match addr with
-      | ADDR_INET (ip, p) -> string_of_inet_addr ip ^ ":" ^ string_of_int p
-      | ADDR_UNIX (s) -> s
-    in
-    let () = Core.eprintf "Accepted: %s\n%!" msg in
-    accepted
+  let accepted, addr = accept listen_sock in
+  let msg =
+    match addr with
+    | ADDR_INET (ip, p) -> string_of_inet_addr ip ^ ":" ^ string_of_int p
+    | ADDR_UNIX (s) -> s
   in
-  acpt
-
-let new_server_sock = lazy (mk_new_server_sock port)
+  let () = close listen_sock in
+  let () = Core.eprintf "Accepted: %s\n%!" msg in
+  accepted
 
 let is_ex_non_fatal err =
   match err with
@@ -57,7 +52,7 @@ let safe_call action on_call_fails =
 
 let rec socket_create () =
   let socket =
-    if Getopt.is_run_as_server () then (Lazy.force new_server_sock) ()
+    if Getopt.is_run_as_server () then new_server_sock port
     else new_client_sock host port
   in
   Core.eprintf "New socket created \n%!";
@@ -68,7 +63,7 @@ and socket_re_create unix_err =
   Core.eprintf "%s, retrying in %d second(s)...\n%!"
     (Core_unix.Error.message unix_err)
     retry_in;
-  Unix.sleep retry_in;
+  sleep retry_in;
   new_socket ()
 
 and new_socket () =
