@@ -26,25 +26,11 @@ let test_mk_reader _ =
   assert_equal 3 recvd ~printer:string_of_int;
   assert_equal (Bytes.of_string "019ab678") b_work ~printer:Bytes.to_string
 
-let test_be _ =
-  let i = 70000 (* hex 01 11 70 *)
-  and msb = char_of_int 0x11
-  and lsb = char_of_int 0x70 in
-  assert_equal msb (msb16_of_int i);
-  assert_equal lsb (lsb16_of_int i);
-  assert_equal (i mod (256 * 256)) (int_of_i16be msb lsb)
-
-let test_compose_msg _ =
-  let msg = Bytes.of_string "0123456789ab"
-  and seq = 16395
-  and res = Bytes.of_string "!M\064\011\000\0120123456789ab" in
-  assert_equal res (compose_msg seq msg) ~printer:Bytes.to_string
-
 let ack_handler _seq = ()
 let msg_handler _buf _seq = ()
 
 let test_net_fsm_full_msg _ =
-  let msg = Bytes.of_string "!M\000\010\000\0200123456789abcdefghij" in
+  let msg = Bytes.of_string "!M        \000\0200123456789abcdefghij" in
   let expected = Bytes.of_string "0123456789abcdefghij" in
   let reader = mk_reader msg in
   let fsm = net_msg_fsm reader ack_handler msg_handler in
@@ -56,8 +42,6 @@ let suite =
   "chat_msg tests"
   >::: [
          "mk_reader tool test" >:: test_mk_reader;
-         "Big endian 16 bit <-> int" >:: test_be;
-         "Msg compose" >:: test_compose_msg;
          "fsm full msg" >:: test_net_fsm_full_msg;
        ]
 

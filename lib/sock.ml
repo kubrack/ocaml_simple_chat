@@ -4,7 +4,13 @@ let retry_in = 1
 let server_listen_on = "0.0.0.0"
 let host = Getopt.host ()
 let port = Getopt.port ()
+
 let sock = ref None
+let rm_sock () = 
+  let () = match !sock with
+  | None -> ()
+  | Some s -> Unix.close s in
+  sock := None
 
 let new_client_sock host port =
   let ip_addr = (gethostbyname host).h_addr_list.(0) in
