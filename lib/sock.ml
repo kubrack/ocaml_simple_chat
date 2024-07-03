@@ -1,9 +1,9 @@
 open Unix
 
-let retry_in = 1
 let server_listen_on = "0.0.0.0"
 let host = Getopt.host ()
 let port = Getopt.port ()
+let retry_in = Getopt.retry_in ()
 
 let sock = ref None
 let rm_sock () = 
