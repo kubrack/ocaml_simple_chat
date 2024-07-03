@@ -26,7 +26,6 @@ let rec local_to_remote () =
   local_to_remote ()
 
 let rec spawn () =
-  Core.eprintf "SPAWN\n";
   let _ = Chat.Sock.new_socket () in
   match Unix.fork () with 
   | 0 -> remote_to_local () 
