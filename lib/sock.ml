@@ -11,6 +11,7 @@ let new_client_sock host port =
   let ip_addr = (gethostbyname host).h_addr_list.(0) in
   let sock_addr = ADDR_INET (ip_addr, port) in
   let sock = socket PF_INET SOCK_STREAM 0 in
+  let () = Core.eprintf "Connecting to %s:%d\n%!" (string_of_inet_addr ip_addr) port in
   let () = connect sock sock_addr in
   sock
 
@@ -18,6 +19,7 @@ let mk_new_server_sock port =
   let ip_addr = (gethostbyname server_listen_on).h_addr_list.(0) in
   let sock_addr = ADDR_INET (ip_addr, port) in
   let listen_sock = socket PF_INET SOCK_STREAM 0 in
+  let () = setsockopt listen_sock SO_REUSEADDR true in
   let () = bind listen_sock sock_addr in
   let () = listen listen_sock 1 in
   Core.eprintf "Listening at %s:%d\n%!" (string_of_inet_addr ip_addr) port;

@@ -23,25 +23,19 @@ let rec local_to_remote () =
   local_to_remote ()
 
 let rec spawn () =
-  Core.eprintf "----------------------------------------------------\n%!";
   let _ = Chat.Sock.new_socket () in
   match Unix.fork () with 
   | 0 -> remote_to_local () 
   | pid1 -> begin
-    Core.printf "----- pid1 %d\n%!" pid1;
     match Unix.fork () with 
     | 0 -> local_to_remote () 
     | pid2 -> begin 
-      Core.printf "----- pid2 %d\n%!" pid2;
-      Core.printf "----- WAITING for first \n%!";
       match Unix.wait () with
-      | (pid, _status) when pid = pid1 -> (Core.printf "---- Kill %d\n%!" pid2; Unix.kill pid2 Sys.sigkill)
-      | (pid, _status) when pid = pid2 -> (Core.printf "---- Kill %d\n%!" pid1; Unix.kill pid1 Sys.sigkill)
-      | (pid, _status) -> Core.printf "----- Unk %d\n%!" pid;
+      | (pid, _status) when pid = pid1 -> Unix.kill pid2 Sys.sigkill
+      | (pid, _status) when pid = pid2 -> Unix.kill pid1 Sys.sigkill
+      | _ -> ();
     end
   end;
-  Core.printf "----- WAITING for 2nd \n%!";
-  let _ = Unix.wait () in Core.printf "----- done\n%!";
-  spawn ()
+  let _ = Unix.wait () in spawn ()
 
 let () = spawn ()
