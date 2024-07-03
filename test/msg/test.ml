@@ -1,18 +1,6 @@
 open OUnit2
 open Chat.Msg
 
-let msg_ok_full = Bytes.of_string "!M\000\010\000\0200123456789abcdefghij"
-let msg_ok_p1 = Bytes.of_string "!M\000\010\000\0200123456789"
-let _msg_ok_p2 = Bytes.of_string "abcdefghi"
-let _msg_ok_p3 = Bytes.of_string "j"
-let _msg_fail_short_p1 = msg_ok_p1
-let _msg_fail_short_p2 = msg_ok_full
-let _ack_ok_full = Bytes.of_string "!A\000\010\000\000"
-let _ack_ok_p1 = Bytes.of_string "!A\000"
-let _ack_ok_p2 = Bytes.of_string "\010\000\000"
-let _unk_ok_p1 = Bytes.of_string "!"
-let _unk_ok_p2 = Bytes.of_string "A\000\010\000\000"
-
 let mk_reader source =
   let from = ref 0 in
   let reader buf pos_to len =
@@ -52,18 +40,17 @@ let test_compose_msg _ =
   and res = Bytes.of_string "!M\064\011\000\0120123456789ab" in
   assert_equal res (compose_msg seq msg) ~printer:Bytes.to_string
 
-let ack_handler seq = Core.eprintf "== ack_handler seq %d\n" seq
-let msg_handler _buf seq = Core.eprintf "== msg_handler seq %d\n" seq
+let ack_handler _seq = ()
+let msg_handler _buf _seq = ()
 
 let test_net_fsm_full_msg _ =
   let msg = Bytes.of_string "!M\000\010\000\0200123456789abcdefghij" in
+  let expected = Bytes.of_string "0123456789abcdefghij" in
   let reader = mk_reader msg in
   let fsm = net_msg_fsm reader ack_handler msg_handler in
   match fsm() with
-  | Some res -> assert_equal msg res ~printer:Bytes.to_string
+  | Some res -> assert_equal expected res ~printer:Bytes.to_string
   | _ -> assert_failure "not Bytes(res)"
-
-let test_net_fsm_splited_msg _ = ()
 
 let suite =
   "chat_msg tests"
@@ -72,7 +59,6 @@ let suite =
          "Big endian 16 bit <-> int" >:: test_be;
          "Msg compose" >:: test_compose_msg;
          "fsm full msg" >:: test_net_fsm_full_msg;
-         "fsm splited msg" >:: test_net_fsm_splited_msg;
        ]
 
 let _ = run_test_tt_main suite
