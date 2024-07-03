@@ -5,7 +5,6 @@ let server_listen_on = "0.0.0.0"
 let host = Getopt.host ()
 let port = Getopt.port ()
 let sock = ref None
-let rm_sock () = sock := None
 
 let new_client_sock host port =
   let ip_addr = (gethostbyname host).h_addr_list.(0) in
@@ -28,7 +27,7 @@ let mk_new_server_sock port =
     let msg =
       match addr with
       | ADDR_INET (ip, p) -> string_of_inet_addr ip ^ ":" ^ string_of_int p
-      | _ -> "???"
+      | ADDR_UNIX (s) -> s
     in
     let () = Core.eprintf "Accepted: %s\n%!" msg in
     accepted
@@ -39,9 +38,9 @@ let new_server_sock = lazy (mk_new_server_sock port)
 
 let is_ex_non_fatal err =
   match err with
-  | EADDRINUSE | EAGAIN | EALREADY | ECONNABORTED | ECONNREFUSED | ECONNRESET
+  | EADDRINUSE | EALREADY | ECONNABORTED | ECONNREFUSED | ECONNRESET
   | EHOSTUNREACH | EINPROGRESS | EINTR | EINVAL | ENETDOWN | ENETUNREACH
-  | ENOTCONN | EPIPE | ETIMEDOUT | EIO | EWOULDBLOCK ->
+  | ENOTCONN | EPIPE | ETIMEDOUT | EIO ->
       true
   | _ -> false
 
