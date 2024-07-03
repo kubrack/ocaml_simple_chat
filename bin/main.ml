@@ -3,11 +3,15 @@ let send_buf buf =
   let _rcdv = Unix.write (Chat.Sock.socket ()) buf 0 (Bytes.length buf) in ()
 
 let ack_handler id = 
-  Core.printf "ACK [%Ld] RTT = %f s\n%!" id (Chat.Msg.rtt_s id)
+  Core.eprintf "ACK [%Ld] RTT = %f s\n%!" id (Chat.Msg.rtt_s id)
 
 let msg_handler buf id = 
-  let _ = Chat.Msg.compose_ack id |> send_buf in
-  Core.printf "GOT [%Ld] %s%!" id (Bytes.to_string buf)
+  Core.printf "%s%!" (Bytes.to_string buf);
+  match id with
+  | 0L -> ()
+  | _ -> (
+    Chat.Msg.compose_ack id |> send_buf;
+    Core.eprintf "GOT [%Ld] \n%!" id)
 
 let rec remote_to_local () = 
   let reader buf pos_to len = Unix.read (Chat.Sock.socket ()) buf pos_to len in
@@ -17,12 +21,12 @@ let rec remote_to_local () =
   | _ -> remote_to_local ()
 
 let rec local_to_remote () =
-  let line = read_line () in 
+  let line = read_line () in
   let buf = Bytes.of_string (String.concat "" [ line; "\n" ]) in
   let msg = Chat.Msg.compose_msg buf in
   let msg_id = Chat.Msg.msg_id msg in
   let _rcvd = send_buf msg in
-  Core.printf "PUT [%Ld]\n%!" msg_id;
+  Core.eprintf "PUT [%Ld]\n%!" msg_id;
   local_to_remote ()
 
 let rec spawn () =

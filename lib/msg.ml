@@ -1,7 +1,7 @@
 (* Protocol
    +0  1 byte  version
    +1  1 byte  type of msg (M - msg, P - part of msg, A - ack)
-   +2  8 bytes id of msg (in chat)
+   +2  8 bytes id of msg, 0 means part of msg
    +10 2 bytes data length
    +12 0 .. (2**16 - 12) data
 *)
@@ -71,10 +71,13 @@ let net_msg_fsm reader ack_handler msg_handler =
     ack_handler id;
     Some buf
   and s_msg id len =
-    debug_fn (__FUNCTION__ ^ (Core.sprintf " id [%s] len [%d]" (Int64.to_string id) len));
-    match reader buf proto_data_offset len with
-    | len -> let msg = Bytes.sub buf proto_data_offset len in
-      let () = msg_handler msg id in 
-      Some msg
+    debug_fn (__FUNCTION__ ^ (Core.sprintf " id [%Ld] len [%d]" id len));
+    let max_data_chunk = buffer_len - proto_data_offset in
+    let to_get = if len > max_data_chunk then max_data_chunk else len in
+    let recvd = reader buf proto_data_offset to_get in
+    let msg = Bytes.sub buf proto_data_offset recvd in
+    match len > recvd with
+    | true -> let () = msg_handler msg 0L in s_msg id (len - recvd)
+    | _ -> let () = msg_handler msg id in Some msg
   in
   s_sync 
