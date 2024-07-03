@@ -55,8 +55,9 @@ let compose_ack seq     = compose proto_type_ack seq (Bytes.create 0)
 
 let net_msg_fsm reader ack_handler msg_handler =
   let buf = Bytes.create buffer_len in
-  let ()  = Bytes.fill buf 0 64 '-' in (* FIXME *)
-  let debug_fn m = Core.eprintf "== fsm: %s buf=[%s]\n%!" m (Bytes.to_string buf) in
+  let ()  = Bytes.fill buf 0 64 '_' in (* FIXME *)
+  (* let debug_fn m = Core.eprintf "== fsm: %s buf=[%s]\n%!" m (Bytes.to_string buf) in *)
+  let debug_fn _ = () in
   let rec s_sync () =
     debug_fn __FUNCTION__;
     match reader buf 0 1 with
@@ -84,12 +85,12 @@ let net_msg_fsm reader ack_handler msg_handler =
     ack_handler seq;
     Some buf
   and s_msg seq len =
-    debug_fn (__FUNCTION__ ^ (Core.sprintf "seq [%d] len [%d]" seq len));
+    debug_fn (__FUNCTION__ ^ (Core.sprintf " seq [%d] len [%d]" seq len));
     let rcvd = reader buf proto_data_offset len in
     match rcvd with
     | 0 -> s_sync ()
     | _ ->
-        let msg = Bytes.sub buf 0 (proto_data_offset + len) in 
+        let msg = Bytes.sub buf proto_data_offset len in 
         let () = msg_handler msg seq in Some msg
   in
   s_sync 
