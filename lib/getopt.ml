@@ -12,8 +12,10 @@ let host = ref ""
 let retry_in = ref 1
 
 let speclist =
-  [ ("-p", Arg.Set_int port, "port number to listen or connect to");
-    ("-i", Arg.Set_int retry_in, "reconnect interval")]
+  [
+    ("-p", Arg.Set_int port, "port number to listen or connect to");
+    ("-i", Arg.Set_int retry_in, "reconnect interval");
+  ]
 
 let parse_opts () =
   let () = Arg.parse speclist (fun line -> host := line) usage_msg in

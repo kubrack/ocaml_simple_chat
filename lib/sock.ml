@@ -4,19 +4,19 @@ let server_listen_on = "0.0.0.0"
 let host = Getopt.host ()
 let port = Getopt.port ()
 let retry_in = Getopt.retry_in ()
-
 let sock = ref None
-let rm_sock () = 
-  let () = match !sock with
-  | None -> ()
-  | Some s -> close s in
+
+let rm_sock () =
+  let () = match !sock with None -> () | Some s -> close s in
   sock := None
 
 let new_client_sock host port =
   let ip_addr = (gethostbyname host).h_addr_list.(0) in
   let sock_addr = ADDR_INET (ip_addr, port) in
   let sock = socket PF_INET SOCK_STREAM 0 in
-  let () = Core.eprintf "Connecting to %s:%d\n%!" (string_of_inet_addr ip_addr) port in
+  let () =
+    Core.eprintf "Connecting to %s:%d\n%!" (string_of_inet_addr ip_addr) port
+  in
   let () = connect sock sock_addr in
   sock
 
@@ -31,7 +31,7 @@ let new_server_sock port =
   let msg =
     match addr with
     | ADDR_INET (ip, p) -> string_of_inet_addr ip ^ ":" ^ string_of_int p
-    | ADDR_UNIX (s) -> s
+    | ADDR_UNIX s -> s
   in
   let () = close listen_sock in
   let () = Core.eprintf "Accepted: %s\n%!" msg in
@@ -61,15 +61,11 @@ let rec socket_create () =
 
 and socket_re_create unix_err =
   Core.eprintf "%s, retrying in %d second(s)...\n%!"
-    (Core_unix.Error.message unix_err)
+    (Unix.error_message unix_err)
     retry_in;
   sleep retry_in;
   new_socket ()
 
-and new_socket () =
-  safe_call socket_create socket_re_create
+and new_socket () = safe_call socket_create socket_re_create
 
-let socket () = match !sock with
-  | Some s -> s
-  | _ -> new_socket ()
-
+let socket () = match !sock with Some s -> s | _ -> new_socket ()

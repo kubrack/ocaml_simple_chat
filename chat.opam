@@ -5,10 +5,10 @@ description: "See README.md"
 maintainer: ["kubrack@gmail.com"]
 authors: ["kubrack@gmail.com"]
 license: "BSD"
-tags: ["ocaml" "tcp" "chat" "netcat"]
-homepage: "https://github.com/kubrack/ocaml_simple_chat"
+tags: ["topics" "ocaml" "tcp" "chat" "netcat"]
+homepage: "https://github.com/username/reponame"
 doc: "https://github.com/kubrack/ocaml_simple_chat/README.md"
-bug-reports: "https://github.com/kubrack/ocaml_simple_chat/issues"
+bug-reports: "https://github.com/username/reponame/issues"
 depends: [
   "ocaml"
   "dune" {>= "3.16"}
@@ -28,4 +28,4 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/kubrack/ocaml_simple_chat.git"
+dev-repo: "git+https://github.com/username/reponame.git"
