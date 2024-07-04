@@ -1,5 +1,3 @@
-open Core
-
 type opt_t = { host : string; port : int; retry_in : int }
 
 let usage_msg =
@@ -25,4 +23,4 @@ let opts = Lazy.from_fun parse_opts
 let host () = (Lazy.force opts).host
 let port () = (Lazy.force opts).port
 let retry_in () = (Lazy.force opts).retry_in
-let is_run_as_server () = String.is_empty (host ())
+let is_run_as_server () = match host () with "" -> true | _ -> false

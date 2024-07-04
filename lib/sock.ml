@@ -1,4 +1,5 @@
 open Unix
+open Printf
 
 let server_listen_on = "0.0.0.0"
 let host = Getopt.host ()
@@ -15,7 +16,7 @@ let new_client_sock host port =
   let sock_addr = ADDR_INET (ip_addr, port) in
   let sock = socket PF_INET SOCK_STREAM 0 in
   let () =
-    Core.eprintf "Connecting to %s:%d\n%!" (string_of_inet_addr ip_addr) port
+    eprintf "Connecting to %s:%d\n%!" (string_of_inet_addr ip_addr) port
   in
   let () = connect sock sock_addr in
   sock
@@ -26,7 +27,7 @@ let new_server_sock port =
   let listen_sock = socket PF_INET SOCK_STREAM 0 in
   let () = bind listen_sock sock_addr in
   let () = listen listen_sock 1 in
-  Core.eprintf "Listening at %s:%d\n%!" (string_of_inet_addr ip_addr) port;
+  eprintf "Listening at %s:%d\n%!" (string_of_inet_addr ip_addr) port;
   let accepted, addr = accept listen_sock in
   let msg =
     match addr with
@@ -34,7 +35,7 @@ let new_server_sock port =
     | ADDR_UNIX s -> s
   in
   let () = close listen_sock in
-  let () = Core.eprintf "Accepted: %s\n%!" msg in
+  let () = eprintf "Accepted: %s\n%!" msg in
   accepted
 
 let is_ex_non_fatal err =
@@ -55,12 +56,12 @@ let rec socket_create () =
     if Getopt.is_run_as_server () then new_server_sock port
     else new_client_sock host port
   in
-  Core.eprintf "New socket created \n%!";
+  eprintf "New socket created \n%!";
   sock := Some socket;
   socket
 
 and socket_re_create unix_err =
-  Core.eprintf "%s, retrying in %d second(s)...\n%!"
+  eprintf "%s, retrying in %d second(s)...\n%!"
     (Unix.error_message unix_err)
     retry_in;
   sleep retry_in;
