@@ -10,7 +10,7 @@ Default port is 6666
 
 ### Quick start
 ```
-opam install dune core_unix
+opam install dune core_unix Lwt
 git clone https://github.com/kubrack/ocaml_simple_chat.git
 cd ocaml_simple_chat
 ```

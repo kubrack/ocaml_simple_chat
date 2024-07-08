@@ -14,36 +14,30 @@ let msg_handler buf id =
     Chat.Msg.compose_ack id |> send_buf;
     eprintf "GOT [%Ld] \n%!" id)
 
-let rec remote_to_local () = 
-  let reader buf pos_to len = Unix.read (Chat.Sock.socket ()) buf pos_to len in
-  let fsm = Chat.Msg.net_msg_fsm reader ack_handler msg_handler in
-  match fsm() with 
-  | None -> (Chat.Sock.rm_sock (); remote_to_local ())
-  | _ -> remote_to_local ()
+let read_net () = 
+  let reader buf pos_to len = 
+    Lwt_unix.read (Lwt_unix.of_unix_file_descr (Chat.Sock.socket ())) buf pos_to len in
+  let on_read_fail ex = 
+    match ex with
+    | Unix.Unix_error (unix_err, _syscall, _where) -> (
+      let () = eprintf "%s\n%!" (Unix.error_message unix_err) in
+      let () = Chat.Sock.rm_sock () in
+      Lwt.return 0)
+    | _ -> raise ex in
+  Chat.Msg.net_msg_fsm reader ack_handler msg_handler on_read_fail
 
-let rec local_to_remote () =
-  let line = read_line () in
+let p_stdin () = Lwt_io.read_line (Lwt_io.of_unix_fd ~mode:Lwt_io.Input Unix.stdin)
+let rec cb_stdin line =
   let buf = Bytes.of_string (String.concat "" [ line; "\n" ]) in
   let msg = Chat.Msg.compose_msg buf in
   let msg_id = Chat.Msg.msg_id msg in
   let _rcvd = send_buf msg in
   eprintf "PUT [%Ld]\n%!" msg_id;
-  local_to_remote ()
+  Lwt.bind (p_stdin ()) cb_stdin
 
-let rec spawn () =
-  let _ = Chat.Sock.new_socket () in
-  match Unix.fork () with 
-  | 0 -> remote_to_local () 
-  | pid1 -> begin
-    match Unix.fork () with 
-    | 0 -> local_to_remote () 
-    | pid2 -> begin 
-      match Unix.wait () with
-      | (pid, _status) when pid = pid1 -> Unix.kill pid2 Sys.sigkill
-      | (pid, _status) when pid = pid2 -> Unix.kill pid1 Sys.sigkill
-      | _ -> ();
-    end
-  end;
-  let _ = Unix.wait () in spawn ()
+let rec ev_loop () =
+  let _ = Lwt_main.run (read_net ()) in
+  ev_loop ()
 
-let () = spawn ()
+let _ = Lwt.bind (p_stdin ()) cb_stdin
+let () = ev_loop ()
